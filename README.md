@@ -1,6 +1,6 @@
 ## Modern Regression with GLMs in R
 
-Short, hands-on examples of Generalized Linear Models (GLMs) in R—focusing on binomial & quasibinomial, sum-to-zero / deviation coding and treatment / dummy coding). 
+Short, hands-on examples of Generalized Linear Models (GLMs) in R—focusing on binomial & quasibinomial, sum-to-zero / deviation coding and treatment / dummy coding. 
 
 ## What's inside
 
