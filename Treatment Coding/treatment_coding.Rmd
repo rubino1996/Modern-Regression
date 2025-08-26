@@ -1,0 +1,301 @@
+---
+title: "Generalized Linear Model: Treatment Coding"
+author: "Ruben Eduardo Montano Claure"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Things to consider before analysis:
+
+The data used here are part of a study of the risk of disease related to the toxicity
+of a certain substance in various areas and how this risk varies among groups classified
+according to a measure of health for the areas.
+
+- $y_{i}$, disease count in area i (response)
+
+- $x_{i}$, measure of the toxicity in area i (no units given) re-centered by subtracting mean
+toxicity (34.5) (covariate)
+
+- $status_{i}$, health index for area i (factor covariate with three levels: $G$ is good, $F$ is fair, $P$ is poor)
+
+- $pday_{i}$, total person-days of exposure to toxicity xi in area i (offset).
+
+# Uploading & Visualizying Data
+
+```{r}
+dataset<- readRDS(file="df.RDS")
+plot(log(y/pdays) ~ I(x+34.5), data=dataset, pch=as.numeric(status), 
+     xlab="toxicity (x+34.5)", main=c("Observed Log Risk\n(excludes zero counts)"))
+legend("topleft", legend=c("Good", "Fair", "Poor"), pch=c(3,2,1), title="Soc-Eco Status")
+```
+
+Formula for a generic response (y), continuous covariate (x), and factor (S)
+
+$$
+y \sim x + I(x^2) + S + S:x + S:I(x^2)
+$$
+
+
+$$
+\log(\mu(x, \text{status}, \beta)) = \beta_0 + \beta_1 x + \beta_2 x^2 + \beta_3 f + \beta_4 g + \beta_5 fx + \beta_6 gx + \beta_7 fx^2 + \beta_8 gx^2
+$$
+
+
+The coded variable $f = 1$ indicates status $= F (f = 0 for status = P or status = G)$, $g = 1$ indicates status $= G (g = 0 for status = P or status = F )$ and $x$ is the toxicity minus mean toxicity $34.5$.
+
+
+```{r}
+# Fitting a GLM
+poismod <- glm(y ~ offset(log(pdays)) + x + I(x^2) + status + status:x + status:I(x^2), 
+    family = "poisson", data = dataset)
+
+
+summary(poismod)
+```
+
+
+1. Fitted (approximate) risk models for the poor health status group, for the fair group, and for the good group.
+
+
+```{r}
+summary(poismod)$coefficients
+
+#(Intercept) = Beta_0
+#x = Beta_1
+#I(x^2) = Beta_2
+#statusF = Beta_3
+#statusG = Beta_4
+#x:statusF = Beta_5
+#x:statusG = Beta_6
+#I(x^2):statusF:= Beta_7
+#I(x^2):statusG = Beta_8
+```
+
+
+Summary from above is used to replace the coefficient values from $\beta_0 - \beta_8$ for Poor, Fair and Good status.
+
+2. For Poor (P), substitute $f = 0$ and $g = 0$ from the equation: $$\log(\mu(x, \text{status}, \beta)) = \beta_0 + \beta_1 x + \beta_2 x^2 + \beta_3 f + \beta_4 g + \beta_5 fx + \beta_6 gx + \beta_7 fx^2 + \beta_8 gx^2$$ to obtain the following:
+
+$$
+\log(\mu_{P}(x)) = \beta_0 + \beta_1 x + \beta_2 x^2 
+$$
+
+- Exponentiation and replacing with coefficient values:
+$$
+\begin{aligned}
+\mu_{P}(x) &= \exp(\beta_0 + \beta_1 x + \beta_2 x^2) \\
+&= \exp(-15.058719444 + 0.210147908x + 0.010783151x^2)
+\end{aligned}
+$$
+
+
+3. For Poor (P), substitute $f = 1$ and $g = 0$ from the equation: $$\log(\mu(x, \text{status}, \beta)) = \beta_0 + \beta_1 x + \beta_2 x^2 + \beta_3 f + \beta_4 g + \beta_5 fx + \beta_6 gx + \beta_7 fx^2 + \beta_8 gx^2$$ to obtain the following:
+
+$$
+\log(\mu_{F}(x)) = (\beta_0 + \beta_3) + x(\beta_1 + \beta_5) + x^2(\beta_2 + \beta_7) 
+$$
+
+- Exponentiation and replacing with coefficient values:
+$$
+\begin{aligned}
+\mu_{F}(x) &= \exp((\beta_0 + \beta_3) + x(\beta_1 + \beta_5) + x^2(\beta_2 + \beta_7)) \\
+&= \exp(-15.32063 + 0.18105x + 0.00801x^2)
+\end{aligned}
+$$
+
+
+
+4. For Poor (P), substitute $f = 0$ and $g = 1$ from the equation: $$\log(\mu(x, \text{status}, \beta)) = \beta_0 + \beta_1 x + \beta_2 x^2 + \beta_3 f + \beta_4 g + \beta_5 fx + \beta_6 gx + \beta_7 fx^2 + \beta_8 gx^2$$ to obtain the following:
+
+$$
+\log(\mu_{G}(x)) = (\beta_0 + \beta_4) + x(\beta_1 + \beta_6) + x^2(\beta_2 + \beta_8) 
+$$
+
+- Exponentiation and replacing with coefficient values:
+$$
+\begin{aligned}
+\mu_{G}(x) &= \exp((\beta_0 + \beta_4) + x(\beta_1 + \beta_6) + x^2(\beta_2 + \beta_8)) \\
+&= \exp(-15.66448 + 0.11994x + 0.00726x^2)
+\end{aligned}
+$$
+
+
+5. Different models to see which terms can be ommited
+
+```{r}
+# Model 1: Only a single curve for all status groups
+
+model_1 <- glm(y ~ offset(log(pdays)) + x + I(x^2), 
+              family = "poisson", data = dataset)
+
+# Model 2: allows curves to have their own ‘intercept’ parameter for each status group
+model_2 <- glm(y ~ offset(log(pdays)) + x + I(x^2) + status, 
+               family = "poisson", data = dataset)
+
+# Model 3: one that allows the curves to have their own intercept and linear parameters for each status group 
+model_3 <- glm(y ~ offset(log(pdays)) + x + I(x^2) + status + status:x, 
+               family = "poisson", data = dataset)
+
+#Full Model
+model_4 <- poismod # from above
+
+
+
+# Test (LRT) 
+anova(model_1, model_2, model_3, model_4, test = "LRT")
+
+```
+
+Since Model 4 does not improve over Model 3, remove the quadratic terms from model 4 (full model), leaving to the best model "Model 3". This conclusion is based on the Anova results from above.
+
+
+6. Using model 3 
+
+```{r}
+
+# Re-centered (actual values)
+new_x <- (dataset$x + 34.5) 
+# Create grid of toxicity values 
+x.grid <- seq(min(new_x), max(new_x), length=200)
+
+# Use median person-days for predict()
+newd <- data.frame(pdays = rep(median(dataset$pdays), 200), x = x.grid)
+
+# Create status factor levels for each group
+statusP <- factor(rep("P", 200), levels = levels(dataset$status))
+statusF <- factor(rep("F", 200), levels = levels(dataset$status))
+statusG <- factor(rep("G", 200), levels = levels(dataset$status))
+
+# Generate new datasets for prediction
+newP <- cbind.data.frame(newd, status = statusP)
+newF <- cbind.data.frame(newd, status = statusF)
+newG <- cbind.data.frame(newd, status = statusG)
+
+# Using the predict function which will give estimated mean counts, E(y | x, status)
+predP <- predict(model_3, newdata = newP)
+predF <- predict(model_3, newdata = newF)
+predG <- predict(model_3, newdata = newG)
+
+# Dividing out pdayi values from the predicted values, to get the requested estimated rate/risk
+riskP <- predP / newP$pdays
+riskF <- predF / newF$pdays
+riskG <- predG / newG$pdays
+
+# Plot the estimated risk curves
+plot(x.grid, riskP, type = "l", col = "red", lwd = 2, ylim = range(c(riskP, riskF, riskG)),
+     xlab = "Toxicity", ylab = "Estimated Risk", main = "Estimated Disease Risk by Status Group")
+lines(x.grid, riskF, col = "blue", lwd = 2)
+lines(x.grid, riskG, col = "green", lwd = 2)
+
+legend("topright", legend = c("Poor", "Fair", "Good"), col = c("red", "blue", "green"), lwd = 2)
+
+```
+
+
+7. Using Relative Risk instead (RR) to visualize the plots better
+```{r}
+# Extract baseline risk for each status group at x = 0
+baseline_risk_P <- exp(coef(model_3)["(Intercept)"])
+baseline_risk_F <- exp(coef(model_3)["(Intercept)"] + coef(model_3)["statusF"])
+baseline_risk_G <- exp(coef(model_3)["(Intercept)"] + coef(model_3)["statusG"])
+```
+
+```{r}
+# Grid of toxicity values, similarly as above
+x.grid <- seq(min(dataset$x), max(dataset$x), length=200)
+
+# Compute relative risk for each group
+RR_P <- exp(coef(model_3)["x"] * x.grid + coef(model_3)["I(x^2)"] * x.grid^2)
+RR_F <- exp((coef(model_3)["x"] + coef(model_3)["x:statusF"]) * x.grid + 
+            coef(model_3)["I(x^2)"] * x.grid^2)
+RR_G <- exp((coef(model_3)["x"] + coef(model_3)["x:statusG"]) * x.grid + 
+            coef(model_3)["I(x^2)"] * x.grid^2)
+
+
+# Plot relative risk curves
+plot(x.grid, RR_P, type = "l", col = "red", lwd = 2, ylim = range(c(RR_P, RR_F, RR_G)),
+     xlab = "Toxicity", ylab = "Relative Risk", main = "Relative Disease Risk by Status Group")
+lines(x.grid, RR_F, col = "blue", lwd = 2)
+lines(x.grid, RR_G, col = "green", lwd = 2)
+
+# Add a legend
+legend("topright", legend = c("Poor", "Fair", "Good"), col = c("red", "blue", "green"), lwd = 2)
+
+```
+
+
+8. Computing (approximating) a 95% confidence intervals for the ratio of the risk (RR) of the good status group over the risk of poor status group, each at an actual toxicity of 45 (x = 45 − 34.5 = 10.5).
+
+$$
+\begin{aligned}
+RR_{G/P} &= \frac{RR_G(x)}{RR_P(x)}\
+         &= \frac{\exp((\beta_1 + \beta_6)x + \beta_2 x^2)}{\exp(\beta_1 x + \beta_2 x^2)}\
+         &= \exp(\beta_6 x)
+\end{aligned}
+$$
+
+```{r}
+library(gmodels)
+# Defining the toxicity level at x = 10.5
+x_value <- 10.5
+
+# Computing RR ratio using model coefficients
+# beta 6 (from above) -> x:statusG
+log_RR_ratio <- coef(model_3)["x:statusG"] * x_value
+RR_ratio <- exp(log_RR_ratio)  # Exponentiation to get the risk ratio
+
+# Use `estimable()` to get confidence interval for log(RR)
+
+ci_log_RR <- estimable(model_3, cm = c("x:statusG" = x_value), conf.int = 0.95)
+
+# Extract numeric confidence interval values (log scale)
+ci_values_log <- c(ci_log_RR$Lower.CI, ci_log_RR$Upper.CI)
+
+# Convert log CI to RR CI by exponentiation
+ci_RR <- exp(ci_values_log)
+
+# Print results
+cat("Estimated RR Ratio (Good/Poor) at x = 10.5:", RR_ratio, "\n")
+cat("95% CI for RR Ratio:", ci_RR, "\n")
+```
+
+9. nlWaldTest::nlConfint to implement the delta method to infer this non-linear function of interest. Report code/output.
+
+```{r}
+names(coef(model_3))
+
+# coefficient 7 is x:statusG, this will be used in the nlWaldTest
+```
+
+```{r}
+# Defining the toxicity level at x = 10.5
+x_value <- 10.5
+
+
+# Compute confidence interval using Delta Method
+ci_RR_delta <- nlWaldTest::nlConfint(model_3, texts = c("exp(b[7] * 10.5)"))
+
+
+# Print Delta Method CI
+print(ci_RR_delta)
+
+```
+
+
+Comments for Research Questions 8 and 9
+
+1. Estimated RR: The estimated RR of the good status group compared to the poor status group at toxicity 45 (x = 10.5) is 0.2886 using both gmodels::estimiable and nlWaldTest::nlConfint. This means that individuals in the good status group have approximately 28.86% of the risk of disease compared to those in the poor status group at toxicity level 10.5.
+
+2. Confidence Intervals (CI): 
+- Using gmodels::estimable: The 95% confidence interval for the RR is [0.1735, 0.4802]
+- Using nlWaldTest::nlConfint (Delta Method): The 95% CI is [0.1435, 0.4338]
+- Both methods provide similar confidence intervals, indicating a reasonably precise estimate
+
+3. Interpretation:
+- Since the confidence intervals do not include 1, one can infer that there is a statistically significant lower risk for the good status group compared to the poor status group at this toxicity level (10.5)
+- The intervals suggest some uncertainty, but they reinforce that the good status group consistently has a lower disease risk than the poor status group.
